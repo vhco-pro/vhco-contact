@@ -1,6 +1,6 @@
 # VH & Co contact Worker
 
-Private Cloudflare Worker for contact enquiries from `vhco.pro` and
+Cloudflare Worker for contact enquiries from `vhco.pro` and
 `stackweaver.sh`. Each site hosts its own form and posts JSON to the same
 origin at `/api/contact`.
 
@@ -52,5 +52,16 @@ An approved rollback restores a previous Worker version on the selected
 target. It leaves Durable Object state in place. Before enabling the form,
 verify the edge route and a controlled inbox receipt with the expected Reply-To.
 
-Worker source and the original contract tests came from VitePress PR #30 at
-`a95b5eadc8b208bdf6acfb2852c2a26a6a230b48`.
+## Rehearse a release
+
+After publishing an exact tag, run **Contact Worker delivery** with the
+`rehearse` operation and one target. Supply the target's synthetic
+`CLOUDFLARE_API_TOKEN` in its GitHub environment using the value
+`synthetic-worker-rehearsal-<target>`. Use a 32-digit dummy account ID and
+the Worker name from the table. The deploy action checks that it received
+the selected environment's token and runs Wrangler's no-bundle dry run
+with Cloudflare credentials cleared. Run this separately for each target.
+
+The `activate` operation rejects synthetic tokens and requires the
+environment's independent reviewer protection. Replace the synthetic
+configuration with production credentials only after rehearsal and review.

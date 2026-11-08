@@ -5,9 +5,9 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: Verify, publish a release, or activate one published target
+        description: Verify, publish, rehearse or activate one published target
         type: choice
-        options: [verify, release, activate]
+        options: [verify, release, rehearse, activate]
         default: verify
       tag:
         description: Exact tag for activation or publication retry
@@ -27,7 +27,7 @@ jobs:
     permissions:
       actions: read
       contents: read
-    uses: vhco-pro/worker-release-workflow/.github/workflows/worker-release.yml@bbd0833efd130b59861fa247806e0e423731a923
+    uses: vhco-pro/worker-release-workflow/.github/workflows/worker-release.yml@66253ca9a66e46cd422d5bd4accf310b1e732bc6
     with:
       operation: verify
       targets: '["vitepress","stackweaver"]'
@@ -61,21 +61,23 @@ jobs:
     permissions:
       actions: read
       contents: write
-    uses: vhco-pro/worker-release-workflow/.github/workflows/worker-release.yml@bbd0833efd130b59861fa247806e0e423731a923
+    uses: vhco-pro/worker-release-workflow/.github/workflows/worker-release.yml@66253ca9a66e46cd422d5bd4accf310b1e732bc6
     with:
       operation: publish
       targets: '["vitepress","stackweaver"]'
       tag: ${{ inputs.tag || needs.version.outputs.tag }}
 
   activate:
-    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'activate' && inputs.target != 'none' && inputs.tag != ''
+    if: github.event_name == 'workflow_dispatch' && (inputs.operation == 'activate' || inputs.operation == 'rehearse') && inputs.target != 'none' && inputs.tag != ''
     permissions:
       actions: read
       contents: read
-    uses: vhco-pro/worker-release-workflow/.github/workflows/worker-release.yml@bbd0833efd130b59861fa247806e0e423731a923
+    uses: vhco-pro/worker-release-workflow/.github/workflows/worker-release.yml@66253ca9a66e46cd422d5bd4accf310b1e732bc6
     with:
-      operation: activate
+      operation: ${{ inputs.operation }}
       environment-prefix: contact
       targets: '["vitepress","stackweaver"]'
       target: ${{ inputs.target }}
       tag: ${{ inputs.tag }}
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
