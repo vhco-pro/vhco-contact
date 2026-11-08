@@ -1,0 +1,81 @@
+name: Contact Worker delivery
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Verify, publish a release, or activate one published target
+        type: choice
+        options: [verify, release, activate]
+        default: verify
+      tag:
+        description: Exact tag for activation or publication retry
+        type: string
+        default: ''
+      target:
+        description: Select one target for activation
+        type: choice
+        options: [none, vitepress, stackweaver]
+        default: none
+
+permissions: {}
+
+jobs:
+  verify:
+    if: github.event_name == 'pull_request' || inputs.operation == 'verify' || (inputs.operation == 'release' && inputs.tag == '' && inputs.target == 'none')
+    permissions:
+      actions: read
+      contents: read
+    uses: vhco-pro/worker-release-workflow/.github/workflows/worker-release.yml@bbd0833efd130b59861fa247806e0e423731a923
+    with:
+      operation: verify
+      targets: '["vitepress","stackweaver"]'
+
+  codeql:
+    if: vars.WORKER_CODEQL_ENABLED == 'true' && (github.event_name == 'pull_request' || inputs.operation == 'verify' || (inputs.operation == 'release' && inputs.tag == ''))
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    uses: vhco-pro/.github/.github/workflows/reusable-codeql-js.yml@e03ad61274b2bf0738b36ed67dff1c376321fb64 # v1.2.4
+
+  version:
+    needs: [verify, codeql]
+    if: >-
+      ${{ !cancelled() && inputs.operation == 'release' && inputs.tag == '' && inputs.target == 'none'
+          && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+          && needs.verify.result == 'success' && (needs.codeql.result == 'success' || needs.codeql.result == 'skipped') }}
+    permissions:
+      contents: write
+    uses: vhco-pro/version-workflow/.github/workflows/version.yml@3b78b04df802ea1592cbe19338d7a882d1888389 # v0.1.0
+    with:
+      preview-label: ''
+
+  publish:
+    needs: version
+    if: >-
+      ${{ !cancelled() && inputs.operation == 'release' && inputs.target == 'none'
+          && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+          && (inputs.tag != '' || (needs.version.result == 'success' && needs.version.outputs.tagged == 'true')) }}
+    permissions:
+      actions: read
+      contents: write
+    uses: vhco-pro/worker-release-workflow/.github/workflows/worker-release.yml@bbd0833efd130b59861fa247806e0e423731a923
+    with:
+      operation: publish
+      targets: '["vitepress","stackweaver"]'
+      tag: ${{ inputs.tag || needs.version.outputs.tag }}
+
+  activate:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'activate' && inputs.target != 'none' && inputs.tag != ''
+    permissions:
+      actions: read
+      contents: read
+    uses: vhco-pro/worker-release-workflow/.github/workflows/worker-release.yml@bbd0833efd130b59861fa247806e0e423731a923
+    with:
+      operation: activate
+      environment-prefix: contact
+      targets: '["vitepress","stackweaver"]'
+      target: ${{ inputs.target }}
+      tag: ${{ inputs.tag }}
