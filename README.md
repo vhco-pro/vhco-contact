@@ -7,7 +7,7 @@ origin at `/api/contact`.
 | Target | Worker | Edge route | Protected environment |
 | --- | --- | --- | --- |
 | `vitepress` | `vhco-contact` | `vhco.pro/api*` | `contact-vitepress` |
-| `stackweaver` | `vhco-contact-stackweaver` | `stackweaver.sh/api/contact*` | `contact-stackweaver` |
+| `stackweaver` | `vhco-contact-stackweaver` | `https://stackweaver.sh/api/contact*` | `contact-stackweaver` |
 
 Each Worker has its own Turnstile widget, secret bindings and SQLite Durable
 Object namespace. Both deliver to the configured VH & Co inbox. Stackweaver
@@ -48,9 +48,9 @@ the corresponding Cloudflare Worker.
 Initial provisioning, route changes and Durable Object migrations need a
 separate runbook and recovery plan. Activation expects an already-provisioned
 Worker. Record the active and previous version from the deployment receipt.
-An approved rollback restores a previous Worker version on the selected
-target. It leaves Durable Object state in place. Before enabling the form,
-verify the edge route and a controlled inbox receipt with the expected Reply-To.
+Rollback is a separate Cloudflare operation. A rollback restores a previous
+Worker version on the selected target and leaves Durable Object state in place.
+[Follow the staging and rollback runbook](docs/staging.md) before enabling the form.
 
 ## Rehearse a release
 
