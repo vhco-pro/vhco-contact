@@ -1,0 +1,4 @@
+# Copy to an untracked local file only when running manual Worker dev.
+HMAC_SECRET=synthetic-local-key-not-for-production
+TURNSTILE_SECRET=synthetic-local-challenge
+SENDER_EMAIL=sender@example.invalid

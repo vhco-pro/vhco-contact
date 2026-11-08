@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "vhco-contact-stackweaver",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-06",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "https://stackweaver.sh/api/contact*",
+      "zone_name": "stackweaver.sh"
+    }
+  ],
+  "observability": {
+    "enabled": false
+  },
+  "vars": {
+    "SITE_ORIGIN": "https://stackweaver.sh",
+    "SITE_PROFILE": "stackweaver"
+  },
+  "send_email": [
+    {
+      "name": "EMAIL",
+      "destination_address": "Michiel@vhco.pro"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SUBMISSIONS",
+        "class_name": "SubmissionStore"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "SubmissionStore"
+      ]
+    }
+  ]
+}

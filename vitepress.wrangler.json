@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "vhco-contact",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-06",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "vhco.pro/api*",
+      "zone_name": "vhco.pro"
+    }
+  ],
+  "observability": {
+    "enabled": false
+  },
+  "vars": {
+    "SITE_ORIGIN": "https://vhco.pro",
+    "SITE_PROFILE": "vitepress"
+  },
+  "send_email": [
+    {
+      "name": "EMAIL",
+      "destination_address": "Michiel@vhco.pro"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SUBMISSIONS",
+        "class_name": "SubmissionStore"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "SubmissionStore"
+      ]
+    }
+  ]
+}
