@@ -5,9 +5,9 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: Verify, publish, rehearse or activate one published target
+        description: Verify, publish, rehearse, activate or request VitePress activation
         type: choice
-        options: [verify, release, rehearse, activate]
+        options: [verify, release, rehearse, activate, request-vitepress-activation]
         default: verify
       tag:
         description: Exact tag for activation or publication retry
@@ -81,3 +81,27 @@ jobs:
       tag: ${{ inputs.tag }}
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  request-vitepress-activation:
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch'
+          && inputs.operation == 'request-vitepress-activation'
+          && inputs.target == 'vitepress'
+          && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Request the protected VitePress deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isImmutable,isDraft \
+            --jq '.isImmutable and (.isDraft | not)' | grep -Fx true
+          gh workflow run delivery.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME" \
+            -f operation=activate -f target=vitepress -f "tag=$TAG"
