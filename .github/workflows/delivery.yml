@@ -27,7 +27,7 @@ jobs:
     permissions:
       actions: read
       contents: read
-    uses: vhco-pro/worker-release-workflow/.github/workflows/worker-release.yml@66253ca9a66e46cd422d5bd4accf310b1e732bc6
+    uses: vhco-pro/worker-release-workflow/.github/workflows/worker-release.yml@66253ca9a66e46cd422d5bd4accf310b1e732bc6 # v0.1.0
     with:
       operation: verify
       targets: '["vitepress","stackweaver"]'
@@ -61,7 +61,7 @@ jobs:
     permissions:
       actions: read
       contents: write
-    uses: vhco-pro/worker-release-workflow/.github/workflows/worker-release.yml@66253ca9a66e46cd422d5bd4accf310b1e732bc6
+    uses: vhco-pro/worker-release-workflow/.github/workflows/worker-release.yml@66253ca9a66e46cd422d5bd4accf310b1e732bc6 # v0.1.0
     with:
       operation: publish
       targets: '["vitepress","stackweaver"]'
@@ -72,7 +72,7 @@ jobs:
     permissions:
       actions: read
       contents: read
-    uses: vhco-pro/worker-release-workflow/.github/workflows/worker-release.yml@66253ca9a66e46cd422d5bd4accf310b1e732bc6
+    uses: vhco-pro/worker-release-workflow/.github/workflows/worker-release.yml@66253ca9a66e46cd422d5bd4accf310b1e732bc6 # v0.1.0
     with:
       operation: ${{ inputs.operation }}
       environment-prefix: contact
