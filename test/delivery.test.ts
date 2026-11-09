@@ -12,7 +12,7 @@ describe('email delivery', () => {
     expect(await response.json()).toEqual({ status: 'accepted' });
     expect(bindings.EMAIL.send).toHaveBeenCalledOnce();
     expect(bindings.EMAIL.send).toHaveBeenCalledWith({
-      to: 'Michiel@vhco.pro',
+      to: 'michiel@vhco.pro',
       from: 'website@vhco.pro',
       replyTo: 'visitor@example.com',
       subject: 'Website enquiry - Platform engineering',
@@ -40,10 +40,10 @@ describe('email delivery', () => {
     expect(bindings.EMAIL.send).toHaveBeenCalledOnce();
   });
 
-  it('records a known provider rejection without sending on retry', async () => {
+  it.each(['E_SENDER_NOT_VERIFIED', 'E_RECIPIENT_NOT_ALLOWED'])('records %s without sending on retry', async code => {
     const bindings = testEnvironment();
     const input = enquiry();
-    bindings.EMAIL.send.mockRejectedValueOnce(Object.assign(new Error('Synthetic sender rejection'), { code: 'E_SENDER_NOT_VERIFIED' }));
+    bindings.EMAIL.send.mockRejectedValueOnce(Object.assign(new Error('Synthetic delivery rejection'), { code }));
     expect((await worker.fetch(contactRequest(input), bindings)).status).toBe(503);
     expect((await worker.fetch(contactRequest(input), bindings)).status).toBe(503);
     expect(bindings.EMAIL.send).toHaveBeenCalledOnce();

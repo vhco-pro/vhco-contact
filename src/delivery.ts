@@ -2,7 +2,11 @@ import type { Env } from './index';
 import type { Enquiry } from './request';
 
 export type DeliveryOutcome = 'accepted' | 'failed' | 'uncertain';
-const KNOWN_REJECTIONS = new Set(['E_SENDER_NOT_VERIFIED', 'E_RATE_LIMIT_EXCEEDED']);
+const KNOWN_REJECTIONS = new Set([
+  'E_SENDER_NOT_VERIFIED',
+  'E_RECIPIENT_NOT_ALLOWED',
+  'E_RATE_LIMIT_EXCEEDED',
+]);
 
 export async function sendEnquiry(input: Enquiry, env: Env): Promise<DeliveryOutcome> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -13,7 +17,7 @@ export async function sendEnquiry(input: Enquiry, env: Env): Promise<DeliveryOut
     const subject = env.SITE_PROFILE === 'stackweaver' ? 'Stackweaver enquiry' : 'Website enquiry';
     const result: unknown = await Promise.race([
       env.EMAIL.send({
-        to: 'Michiel@vhco.pro',
+        to: 'michiel@vhco.pro',
         from: env.SENDER_EMAIL,
         replyTo: input.email,
         subject: input.topic ? `${subject} - ${input.topic}` : subject,

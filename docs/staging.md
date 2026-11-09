@@ -20,7 +20,9 @@ flowchart LR
 Use separate staging Worker names and hostnames for VitePress and Stackweaver.
 Give each its own Durable Object namespace, HMAC secret and host-scoped
 Turnstile widget. Bind delivery only to the approved inbox using an existing
-verified sender. Keep public production routes and mail DNS out of staging.
+verified sender. Match the exact spelling of the inbox in Cloudflare's
+verified destination list. Keep public production routes and mail DNS out of
+staging.
 
 The manifests in `v0.1.0` bind the bundles to the production Worker names
 and configurations. The deployment action will reject a staging configuration
