@@ -99,6 +99,7 @@ try {
     const origin = target.vars.SITE_ORIGIN;
     const delivery = messages.get(target.name);
     assert.equal(delivery.length, target === config ? 2 : 1);
+    assert.equal(delivery[0].to, target.send_email[0].destination_address);
     assert.equal(delivery[0].subject, stackweaver ? 'Stackweaver enquiry' : 'Website enquiry');
     assert.equal(delivery[0].replyTo, payload.email);
     assert.equal((await runtime.dispatchFetch(origin + '/api/contact')).status, 405);

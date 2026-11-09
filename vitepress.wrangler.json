@@ -21,7 +21,7 @@
   "send_email": [
     {
       "name": "EMAIL",
-      "destination_address": "Michiel@vhco.pro"
+      "destination_address": "michiel@vhco.pro"
     }
   ],
   "durable_objects": {
