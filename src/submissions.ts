@@ -8,7 +8,7 @@ type StoredState = 'pending' | 'accepted' | 'uncertain' | 'failed';
 type StoredSubmission = { payload_hash: string; state: StoredState };
 
 export type Reservation =
-  | { state: StoredState | 'missing' | 'conflict' }
+  | { state: StoredState | 'missing' | 'conflict' | 'challenge_replayed' }
   | { state: 'reserved'; createdAt: number }
   | { state: 'limited'; retryAfter: number };
 
@@ -24,6 +24,13 @@ export class SubmissionStore extends DurableObject<Env> {
     )`);
     ctx.storage.sql.exec('CREATE INDEX IF NOT EXISTS submissions_ip_time ON submissions(ip_hash, created_at)');
     ctx.storage.sql.exec('CREATE INDEX IF NOT EXISTS submissions_time ON submissions(created_at)');
+    // Older versions insert by column name and clean up by row age. Keeping the
+    // digest on the submission preserves both behaviors during rollback.
+    const columns = ctx.storage.sql.exec<{ name: string }>('PRAGMA table_info(submissions)').toArray();
+    if (!columns.some(column => column.name === 'challenge_hash')) {
+      ctx.storage.sql.exec('ALTER TABLE submissions ADD COLUMN challenge_hash TEXT');
+    }
+    ctx.storage.sql.exec('CREATE UNIQUE INDEX IF NOT EXISTS submissions_challenge ON submissions(challenge_hash) WHERE challenge_hash IS NOT NULL');
   }
 
   lookup(id: string, payloadHash: string): Reservation {
@@ -37,10 +44,12 @@ export class SubmissionStore extends DurableObject<Env> {
     return { state: row.state };
   }
 
-  async reserve(id: string, payloadHash: string, ipHash: string): Promise<Reservation> {
+  async reserve(id: string, payloadHash: string, ipHash: string, challengeHash?: string): Promise<Reservation> {
     return this.ctx.blockConcurrencyWhile(async () => {
       const existing = this.lookup(id, payloadHash);
       if (existing.state !== 'missing') return existing;
+      // A previous Worker version can still make this RPC during rollout.
+      if (!challengeHash) return { state: 'failed' };
       const now = Date.now();
       const expiry = now + RETENTION_MS;
       const alarm = await this.ctx.storage.getAlarm();
@@ -49,6 +58,13 @@ export class SubmissionStore extends DurableObject<Env> {
       return this.ctx.storage.transactionSync(() => {
         const current = this.lookup(id, payloadHash);
         if (current.state !== 'missing') return current;
+        this.ctx.storage.sql.exec('DELETE FROM submissions WHERE created_at <= ?', now - RETENTION_MS);
+        // Siteverify and reservation are separate operations. Record the digest in
+        // the same transaction as the submission so only one ID can reserve it.
+        const replay = this.ctx.storage.sql.exec(
+          'SELECT id FROM submissions WHERE challenge_hash = ?', challengeHash,
+        ).toArray()[0];
+        if (replay) return { state: 'challenge_replayed' };
         const dayStart = Math.floor(now / RETENTION_MS) * RETENTION_MS;
         const recent = this.ctx.storage.sql.exec<{ created_at: number }>(
           'SELECT created_at FROM submissions WHERE ip_hash = ? AND created_at > ? ORDER BY created_at',
@@ -62,10 +78,9 @@ export class SubmissionStore extends DurableObject<Env> {
         if (recent.length >= 2) retryAt = Math.max(retryAt, (recent[0]?.created_at ?? now) + HOUR_MS);
         if (daily >= 25) retryAt = Math.max(retryAt, dayStart + RETENTION_MS);
         if (retryAt > now) return { state: 'limited', retryAfter: Math.ceil((retryAt - now) / 1000) };
-        this.ctx.storage.sql.exec('DELETE FROM submissions WHERE created_at <= ?', now - RETENTION_MS);
         this.ctx.storage.sql.exec(
-          'INSERT INTO submissions (id, payload_hash, ip_hash, created_at, state) VALUES (?, ?, ?, ?, ?)',
-          id, payloadHash, ipHash, now, 'pending',
+          'INSERT INTO submissions (id, payload_hash, ip_hash, created_at, state, challenge_hash) VALUES (?, ?, ?, ?, ?, ?)',
+          id, payloadHash, ipHash, now, 'pending', challengeHash,
         );
         return { state: 'reserved', createdAt: now };
       });

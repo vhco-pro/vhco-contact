@@ -45,12 +45,17 @@ async function submissionKeys(input: Enquiry, address: string, secret: string) {
     return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
   }
   const payload = JSON.stringify({ name: input.name, email: input.email, topic: input.topic, message: input.message });
-  const [ipHash, payloadHash] = await Promise.all([sign(`ip\0${address}`), sign(`payload\0${payload}`)]);
-  return { ipHash, payloadHash };
+  const [ipHash, payloadHash, challengeHash] = await Promise.all([
+    sign(`ip\0${address}`),
+    sign(`payload\0${payload}`),
+    sign(`challenge\0${input.turnstileToken}`),
+  ]);
+  return { ipHash, payloadHash, challengeHash };
 }
 
 function reservationResponse(result: Reservation): Response {
   if (result.state === 'limited') return json(429, 'rate_limited', { 'Retry-After': String(result.retryAfter) });
+  if (result.state === 'challenge_replayed') return json(403, 'challenge_invalid');
   if (result.state === 'conflict') return json(409, 'submission_conflict');
   if (result.state === 'accepted') return json(200, 'accepted');
   if (result.state === 'failed') return json(503, 'unavailable');
@@ -89,7 +94,7 @@ export default {
       const existing = await store.lookup(input.submissionId, keys.payloadHash);
       if (existing.state !== 'missing') return reservationResponse(existing);
       await verifyChallenge(input, env.TURNSTILE_SECRET, site.hostname);
-      const result = await store.reserve(input.submissionId, keys.payloadHash, keys.ipHash);
+      const result = await store.reserve(input.submissionId, keys.payloadHash, keys.ipHash, keys.challengeHash);
       if (result.state !== 'reserved') return reservationResponse(result);
       const outcome = await sendEnquiry(input, env);
       try {

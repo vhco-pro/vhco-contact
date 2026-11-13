@@ -13,6 +13,8 @@ Each Worker has its own Turnstile widget, secret bindings and SQLite Durable
 Object namespace. Both deliver to the configured VH & Co inbox. Stackweaver
 enquiries have a distinct subject. The visitor address is used for Reply-To.
 
+[Architecture and code map](docs/architecture.md)
+
 ## Verify locally
 
 Use Node 24.19.0 with the committed npm lockfile.
@@ -42,6 +44,13 @@ Create separate protected GitHub environments. Set `CLOUDFLARE_ACCOUNT_ID`
 and `WORKER_NAME` as environment variables and
 `CLOUDFLARE_API_TOKEN` as an environment secret. Restrict the environment to
 the reviewed default branch and require an independent deployment approval.
+For a sole maintainer, use `request-vitepress-activation` with `vitepress` or
+`request-stackweaver-activation` with `stackweaver`, and specify the exact
+release tag. GitHub Actions requests the selected deployment using its
+short-lived repository token. The owner approves the resulting run in
+`contact-vitepress` or `contact-stackweaver`. The request job receives no
+deployment credentials.
+
 Set `HMAC_SECRET`, `TURNSTILE_SECRET` and `SENDER_EMAIL` as Worker bindings on
 the corresponding Cloudflare Worker.
 

@@ -89,8 +89,9 @@ try {
   assert.equal(first.headers.get('X-Robots-Tag'), 'noindex');
   assert.deepEqual(await first.json(), { status: 'accepted' });
   assert.equal((await submit(config)).status, 200);
-  assert.equal((await submit(config, { ...payload, submissionId: crypto.randomUUID() })).status, 200);
-  assert.equal((await submit(config, { ...payload, submissionId: crypto.randomUUID() })).status, 429);
+  assert.equal((await submit(config, { ...payload, submissionId: crypto.randomUUID() })).status, 403);
+  assert.equal((await submit(config, { ...payload, submissionId: crypto.randomUUID(), turnstileToken: 'second-synthetic' })).status, 200);
+  assert.equal((await submit(config, { ...payload, submissionId: crypto.randomUUID(), turnstileToken: 'third-synthetic' })).status, 429);
   assert.equal((await submit(config, payload, 'https://wrong.example')).status, 403);
   assert.equal((await submit(other)).status, 200);
   assert.equal((await submit(other)).status, 200);
