@@ -14,15 +14,12 @@ describe('operational privacy and expiry', () => {
     await worker.fetch(contactRequest(input), bindings);
     const rows = await runInDurableObject(store(bindings), (_instance, state) => state.storage.sql.exec('SELECT * FROM submissions').toArray());
     expect(rows).toHaveLength(1);
-    expect(Object.keys(rows[0] ?? {}).sort()).toEqual(['created_at', 'id', 'ip_hash', 'payload_hash', 'state']);
+    expect(Object.keys(rows[0] ?? {}).sort()).toEqual(['challenge_hash', 'created_at', 'id', 'ip_hash', 'payload_hash', 'state']);
     expect(rows[0]?.ip_hash).toMatch(/^[0-9a-f]{64}$/);
     expect(rows[0]?.payload_hash).toMatch(/^[0-9a-f]{64}$/);
-    const challenges = await runInDurableObject(store(bindings), (_instance, state) =>
-      state.storage.sql.exec('SELECT * FROM consumed_challenges').toArray());
-    expect(challenges).toHaveLength(1);
-    expect(challenges[0]?.token_hash).toMatch(/^[0-9a-f]{64}$/);
-    expect(challenges[0]?.created_at).toBe(TEST_TIME.getTime());
-    const saved = JSON.stringify({ rows, challenges });
+    expect(rows[0]?.challenge_hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(rows[0]?.created_at).toBe(TEST_TIME.getTime());
+    const saved = JSON.stringify(rows);
     for (const value of ['192.0.2.10', input.name, input.email, input.message, input.turnstileToken, bindings.HMAC_SECRET]) {
       expect(saved).not.toContain(value);
     }
@@ -37,10 +34,27 @@ describe('operational privacy and expiry', () => {
     expect(await runDurableObjectAlarm(stub)).toBe(true);
     const count = await runInDurableObject(stub, (_instance, state) => state.storage.sql.exec<{ total: number }>('SELECT COUNT(*) AS total FROM submissions').one().total);
     expect(count).toBe(0);
-    const challenges = await runInDurableObject(stub, (_instance, state) =>
-      state.storage.sql.exec('SELECT token_hash FROM consumed_challenges').toArray());
-    expect(challenges).toEqual([]);
     expect(await runInDurableObject(stub, (_instance, state) => state.storage.getAlarm())).toBeNull();
+  });
+
+  it('preserves existing submission rows and expiry with the previous version’s SQL', async () => {
+    const bindings = testEnvironment();
+    const stub = store(bindings);
+    await runInDurableObject(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        'INSERT INTO submissions (id, payload_hash, ip_hash, created_at, state) VALUES (?, ?, ?, ?, ?)',
+        'existing', 'existing-payload', 'existing-ip', TEST_TIME.getTime(), 'accepted',
+      );
+    });
+    expect(await stub.lookup('existing', 'existing-payload')).toEqual({ state: 'accepted' });
+    expect(await stub.reserve('existing', 'existing-payload', 'existing-ip')).toEqual({ state: 'accepted' });
+    expect(await stub.reserve('new', 'new-payload', 'existing-ip')).toEqual({ state: 'failed' });
+    expect((await worker.fetch(contactRequest(), bindings)).status).toBe(200);
+    const remaining = await runInDurableObject(stub, (_instance, state) => {
+      state.storage.sql.exec('DELETE FROM submissions WHERE created_at <= ?', TEST_TIME.getTime());
+      return state.storage.sql.exec('SELECT challenge_hash FROM submissions').toArray();
+    });
+    expect(remaining).toEqual([]);
   });
 
   it('keeps newer records and schedules their own expiry without delaying the oldest alarm', async () => {

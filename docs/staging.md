@@ -49,3 +49,8 @@ Keep the Worker version IDs, deployment IDs and the redacted inbox receipt
 with the test record. Rollback restores the selected Worker version. Durable
 Object state stays in place and needs its own recovery plan for any migration.
 [Cloudflare versions and deployments](https://developers.cloudflare.com/workers/versions-and-deployments/)
+
+For the replay-protection rollout, keep the Stackweaver form in email-only
+mode while versions change. Use a single version at 100%. Verify the active
+version before restoring the form. The previous version's age-based cleanup
+still removes each submission and its challenge digest after a rollback.
