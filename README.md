@@ -13,6 +13,8 @@ Each Worker has its own Turnstile widget, secret bindings and SQLite Durable
 Object namespace. Both deliver to the configured VH & Co inbox. Stackweaver
 enquiries have a distinct subject. The visitor address is used for Reply-To.
 
+[Architecture and code map](docs/architecture.md)
+
 ## Verify locally
 
 Use Node 24.19.0 with the committed npm lockfile.
