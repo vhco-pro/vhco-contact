@@ -24,7 +24,7 @@ export function enquiry(overrides: Record<string, unknown> = {}) {
     email: 'visitor@example.com',
     topic: 'Platform engineering',
     message: 'A synthetic enquiry for the contact tests.',
-    turnstileToken: 'fixture-token',
+    turnstileToken: crypto.randomUUID(),
     ...overrides,
   };
 }

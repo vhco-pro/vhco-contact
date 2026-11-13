@@ -17,7 +17,12 @@ describe('operational privacy and expiry', () => {
     expect(Object.keys(rows[0] ?? {}).sort()).toEqual(['created_at', 'id', 'ip_hash', 'payload_hash', 'state']);
     expect(rows[0]?.ip_hash).toMatch(/^[0-9a-f]{64}$/);
     expect(rows[0]?.payload_hash).toMatch(/^[0-9a-f]{64}$/);
-    const saved = JSON.stringify(rows);
+    const challenges = await runInDurableObject(store(bindings), (_instance, state) =>
+      state.storage.sql.exec('SELECT * FROM consumed_challenges').toArray());
+    expect(challenges).toHaveLength(1);
+    expect(challenges[0]?.token_hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(challenges[0]?.created_at).toBe(TEST_TIME.getTime());
+    const saved = JSON.stringify({ rows, challenges });
     for (const value of ['192.0.2.10', input.name, input.email, input.message, input.turnstileToken, bindings.HMAC_SECRET]) {
       expect(saved).not.toContain(value);
     }
@@ -32,6 +37,9 @@ describe('operational privacy and expiry', () => {
     expect(await runDurableObjectAlarm(stub)).toBe(true);
     const count = await runInDurableObject(stub, (_instance, state) => state.storage.sql.exec<{ total: number }>('SELECT COUNT(*) AS total FROM submissions').one().total);
     expect(count).toBe(0);
+    const challenges = await runInDurableObject(stub, (_instance, state) =>
+      state.storage.sql.exec('SELECT token_hash FROM consumed_challenges').toArray());
+    expect(challenges).toEqual([]);
     expect(await runInDurableObject(stub, (_instance, state) => state.storage.getAlarm())).toBeNull();
   });
 

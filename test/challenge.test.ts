@@ -52,3 +52,15 @@ describe('server-side challenge verification', () => {
     expect(body.toString()).not.toContain('192.0.2');
   });
 });
+
+it('allows only one reservation when Siteverify accepts the same token concurrently for different IDs', async () => {
+  const bindings = testEnvironment();
+  const turnstileToken = 'shared-challenge';
+  const responses = await Promise.all([
+    worker.fetch(contactRequest(enquiry({ turnstileToken })), bindings),
+    worker.fetch(contactRequest(enquiry({ turnstileToken })), bindings),
+  ]);
+  expect(responses.map(response => response.status).sort()).toEqual([200, 403]);
+  expect(bindings.EMAIL.send).toHaveBeenCalledOnce();
+  expect(await responses.find(response => response.status === 403)?.json()).toEqual({ status: 'challenge_invalid' });
+});

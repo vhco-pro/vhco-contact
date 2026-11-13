@@ -8,7 +8,7 @@ type StoredState = 'pending' | 'accepted' | 'uncertain' | 'failed';
 type StoredSubmission = { payload_hash: string; state: StoredState };
 
 export type Reservation =
-  | { state: StoredState | 'missing' | 'conflict' }
+  | { state: StoredState | 'missing' | 'conflict' | 'challenge_replayed' }
   | { state: 'reserved'; createdAt: number }
   | { state: 'limited'; retryAfter: number };
 
@@ -24,6 +24,11 @@ export class SubmissionStore extends DurableObject<Env> {
     )`);
     ctx.storage.sql.exec('CREATE INDEX IF NOT EXISTS submissions_ip_time ON submissions(ip_hash, created_at)');
     ctx.storage.sql.exec('CREATE INDEX IF NOT EXISTS submissions_time ON submissions(created_at)');
+    // A separate table lets existing deployments retain their current submission rows.
+    ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS consumed_challenges (
+      token_hash TEXT PRIMARY KEY,
+      created_at INTEGER NOT NULL
+    )`);
   }
 
   lookup(id: string, payloadHash: string): Reservation {
@@ -37,7 +42,7 @@ export class SubmissionStore extends DurableObject<Env> {
     return { state: row.state };
   }
 
-  async reserve(id: string, payloadHash: string, ipHash: string): Promise<Reservation> {
+  async reserve(id: string, payloadHash: string, ipHash: string, challengeHash: string): Promise<Reservation> {
     return this.ctx.blockConcurrencyWhile(async () => {
       const existing = this.lookup(id, payloadHash);
       if (existing.state !== 'missing') return existing;
@@ -49,6 +54,13 @@ export class SubmissionStore extends DurableObject<Env> {
       return this.ctx.storage.transactionSync(() => {
         const current = this.lookup(id, payloadHash);
         if (current.state !== 'missing') return current;
+        this.deleteExpired(now);
+        // Siteverify and reservation are separate operations. Record the digest in
+        // the same transaction as the submission so only one ID can reserve it.
+        const replay = this.ctx.storage.sql.exec(
+          'SELECT token_hash FROM consumed_challenges WHERE token_hash = ?', challengeHash,
+        ).toArray()[0];
+        if (replay) return { state: 'challenge_replayed' };
         const dayStart = Math.floor(now / RETENTION_MS) * RETENTION_MS;
         const recent = this.ctx.storage.sql.exec<{ created_at: number }>(
           'SELECT created_at FROM submissions WHERE ip_hash = ? AND created_at > ? ORDER BY created_at',
@@ -62,7 +74,9 @@ export class SubmissionStore extends DurableObject<Env> {
         if (recent.length >= 2) retryAt = Math.max(retryAt, (recent[0]?.created_at ?? now) + HOUR_MS);
         if (daily >= 25) retryAt = Math.max(retryAt, dayStart + RETENTION_MS);
         if (retryAt > now) return { state: 'limited', retryAfter: Math.ceil((retryAt - now) / 1000) };
-        this.ctx.storage.sql.exec('DELETE FROM submissions WHERE created_at <= ?', now - RETENTION_MS);
+        this.ctx.storage.sql.exec(
+          'INSERT INTO consumed_challenges (token_hash, created_at) VALUES (?, ?)', challengeHash, now,
+        );
         this.ctx.storage.sql.exec(
           'INSERT INTO submissions (id, payload_hash, ip_hash, created_at, state) VALUES (?, ?, ?, ?, ?)',
           id, payloadHash, ipHash, now, 'pending',
@@ -89,9 +103,15 @@ export class SubmissionStore extends DurableObject<Env> {
     });
   }
 
+  private deleteExpired(now: number): void {
+    const cutoff = now - RETENTION_MS;
+    this.ctx.storage.sql.exec('DELETE FROM submissions WHERE created_at <= ?', cutoff);
+    this.ctx.storage.sql.exec('DELETE FROM consumed_challenges WHERE created_at <= ?', cutoff);
+  }
+
   async alarm(): Promise<void> {
     await this.ctx.blockConcurrencyWhile(async () => {
-      this.ctx.storage.sql.exec('DELETE FROM submissions WHERE created_at <= ?', Date.now() - RETENTION_MS);
+      this.ctx.storage.transactionSync(() => this.deleteExpired(Date.now()));
       const oldest = this.ctx.storage.sql.exec<{ created_at: number | null }>(
         'SELECT MIN(created_at) AS created_at FROM submissions',
       ).one().created_at;
