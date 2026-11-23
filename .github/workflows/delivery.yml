@@ -48,7 +48,7 @@ jobs:
           && needs.verify.result == 'success' && (needs.codeql.result == 'success' || needs.codeql.result == 'skipped') }}
     permissions:
       contents: write
-    uses: vhco-pro/version-workflow/.github/workflows/version.yml@3b78b04df802ea1592cbe19338d7a882d1888389 # v0.1.0
+    uses: vhco-pro/version-workflow/.github/workflows/version.yml@46a1ac93fdbd3abaa3a7d17259c5565edd2053c0 # v0.1.2
     with:
       preview-label: ''
 
